@@ -10,7 +10,7 @@ Filebeat empuja las alertas hacia el Dashboard de OpenSearch.
 
  Guía Paso a Paso
 # Paso 1: Habilitar Syslog en Wazuh Manager
-Conéctate por SSH a tu servidor Wazuh (192.168.1.200) y edita el archivo de configuración principal:
+Conéctate por SSH a tu servidor Wazuh (192.168.1.200, para este laboratorio) y edita el archivo de configuración principal:
 bash
 sudo nano /var/ossec/etc/ossec.conf
 
