@@ -1,0 +1,10 @@
+<decoder name="mikrotik">
+  <prematch>^firewall,info|^system,info|^dhcp,info|^critical</prematch>
+</decoder>
+
+<decoder name="mikrotik-firewall">
+  <parent>mikrotik</parent>
+  <prematch>dstnat:</prematch>
+  <regex>in:(\S+)\s+out:\S+\s+connection-state:\S+\s+src-mac\s+\S+,\s+proto\s+(\S+)\s+\S+\s+(\d+.\d+.\d+.\d+):(\d+)->(\d+.\d+.\d+.\d+):(\d+)</regex>
+  <order>interface, protocol, srcip, srcport, dstip, dstport</order>
+</decoder>
