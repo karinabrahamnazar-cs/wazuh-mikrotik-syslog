@@ -9,7 +9,7 @@ Wazuh Rules genera alertas indexables (Nivel 3).
 Filebeat empuja las alertas hacia el Dashboard de OpenSearch.
 
  Guía Paso a Paso
-Paso 1: Habilitar Syslog en Wazuh Manager
+# Paso 1: Habilitar Syslog en Wazuh Manager
 Conéctate por SSH a tu servidor Wazuh (192.168.1.200) y edita el archivo de configuración principal:
 bash
 sudo nano /var/ossec/etc/ossec.conf
@@ -36,7 +36,7 @@ sudo ufw allow from 192.168.1.1 to any port 514 proto udp
 sudo systemctl restart wazuh-manager
 
 
-Paso 2: Configurar el envío en MikroTik (RouterOS)
+# Paso 2: Configurar el envío en MikroTik (RouterOS)
 Abre la terminal de tu MikroTik y ejecuta los siguientes comandos para crear la acción remota y redirigir los logs de firewall y sistema:
 routeros
 # 1. Crear el destino remoto hacia el servidor Debian
@@ -47,7 +47,7 @@ routeros
 /system logging add action=wazuhserver topics=system
 /system logging add action=wazuhserver topics=critical
 
-Paso 3: Añadir Decodificadores Personalizados
+# Paso 3: Añadir Decodificadores Personalizados
 Para romper la cadena de texto cruda del MikroTik y extraer variables limpias (IPs, puertos, interfaces), crea este archivo en Debian:
 bash
 sudo nano /var/ossec/etc/decoders/mikrotik_decoders.xml
@@ -66,7 +66,7 @@ xml
   <order>interface, protocol, srcip, srcport, dstip, dstport</order>
 </decoder>
 
-Paso 4: Añadir Reglas de Alerta
+# Paso 4: Añadir Reglas de Alerta
 Crea el archivo de reglas para que Wazuh asigne severidad a los eventos detectados:
 bash
 sudo nano /var/ossec/etc/rules/mikrotik_rules.xml
@@ -89,7 +89,7 @@ xml
   </rule>
 </group>
 
-Paso 5: Testear y Aplicar Cambios
+# Paso 5: Testear y Aplicar Cambios
 Prueba un log crudo con la herramienta de testeo nativa:
 bash
 /var/ossec/bin/wazuh-logtest
