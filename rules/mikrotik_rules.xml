@@ -1,14 +1,16 @@
+
 <group name="mikrotik,firewall,">
-  <!-- Regla madre para agrupar todo lo que sea MikroTik -->
+  <!-- Regla madre para eventos generales de MikroTik -->
   <rule id="100100" level="0">
     <decoded_as>mikrotik</decoded_as>
     <description>Eventos generales de MikroTik RouterOS.</description>
   </rule>
 
-  <!-- Regla para alertar intentos de conexión por NAT / Firewall -->
+  <!-- Intentos de conexión NAT -->
   <rule id="100101" level="3">
-    <if_sid>100100</if_sid>
+    <decoded_as>mikrotik-firewall</decoded_as>
     <match>dstnat</match>
     <description>MikroTik: Intento de conexión detectado en NAT (dstnat).</description>
   </rule>
 </group>
+
