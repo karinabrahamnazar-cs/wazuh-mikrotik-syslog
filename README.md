@@ -1,127 +1,197 @@
-## Guardar logs de MikroTik en Wazuh (vía Syslog)
+# Integración de MikroTik RouterOS con Wazuh SIEM mediante Syslog
 
-Este repositorio contiene la configuración necesaria para recibir, decodificar y visualizar la telemetría y eventos de firewall de un router MikroTik RouterOS en Wazuh SIEM sin instalar agentes, usando el protocolo Syslog estándar.
+Este repositorio contiene los archivos de configuración necesarios para integrar un router MikroTik RouterOS con Wazuh SIEM, permitiendo centralizar eventos de firewall y sistema, interpretar sus registros y generar alertas de seguridad sin instalar agentes en el router.
 
-## Resumen de la Arquitectura
+La integración utiliza Syslog sobre UDP/514, decoders personalizados y reglas locales de Wazuh para identificar eventos relevantes y facilitar su análisis desde el dashboard.
 
-MikroTik envía eventos en texto plano por puerto 514 UDP.
-Debian (Wazuh Manager) abre el puerto de escucha y valida que solo esa IP entregue logs.
-Wazuh Engine procesa el texto usando expresiones regulares (decoders).
-Wazuh Rules genera alertas indexables (Nivel 3).
-Filebeat empuja las alertas hacia el Dashboard de OpenSearch.
+## Arquitectura
 
-## Guía Paso a Paso
+```text
+┌──────────────────────┐
+│  MikroTik RouterOS   │
+│  Firewall / System   │
+└──────────┬───────────┘
+           │ Syslog UDP/514
+           ▼
+┌──────────────────────┐
+│   Wazuh Manager      │
+│  Recepción de logs   │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│ Custom Decoders      │
+│ Extracción de campos │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│ Local Rules          │
+│ Generación de alertas│
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│ Wazuh Indexer        │
+│ Wazuh Dashboard      │
+└──────────────────────┘
+```
 
-## Paso 1: Habilitar Syslog en Wazuh Manager
-Conéctate por SSH a tu servidor Wazuh (192.168.1.200, para este laboratorio) y edita el archivo de configuración principal:
+## Estructura del repositorio
 
+| Archivo | Descripción |
+|---|---|
+| `mikrotik_decoders.xml` | Decoders personalizados para reconocer eventos de MikroTik y extraer campos de tráfico de firewall. |
+| `mikrotik_rules.xml` | Reglas locales para clasificar eventos y generar alertas. |
+| `mikrotik_config.rsc` |  Script de configuración RouterOS | Comandos para crear el destino Syslog y habilitar el envío de eventos al servidor Wazuh. |
+
+Consulta los archivos del repositorio para obtener el contenido completo de cada configuración.
+
+## Requisitos
+
+- MikroTik RouterOS con acceso administrativo.
+- Servidor Debian con Wazuh Manager instalado y operativo.
+- Conectividad IP entre el router y el servidor.
+- Puerto UDP/514 permitido entre ambos dispositivos.
+- Acceso administrativo al sistema Debian.
+
+## Guía de implementación
+
+### 1. Configurar la recepción de Syslog en Wazuh
+
+En el servidor Wazuh, edita la configuración principal:
+
+```bash
 sudo nano /var/ossec/etc/ossec.conf
+```
 
-Asegúrate de tener habilitado el bloque <logall> en la sección <global> para auditoría, y añade el bloque remoto para escuchar el puerto 514:
+Dentro de la configuración, verifica que exista un bloque `remote` para recibir conexiones Syslog. Si todavía no existe, agrega el bloque correspondiente utilizando los valores de tu entorno.
 
-<global>
-  <logall>yes</logall>
-  <logall_json>yes</logall_json>
-</global>
+| Parámetro | Valor de ejemplo |
+|---|---|
+| Protocolo | UDP |
+| Puerto | 514 |
+| IP del servidor | `192.168.1.200` |
+| IP del MikroTik | `192.168.1.1` |
 
-<remote>
-  <connection>syslog</connection>
-  <port>514</port>
-  <protocol>udp</protocol>
-  <allowed-ips>192.168.1.1/24</allowed-ips>
-  <local_ip>192.168.1.200</local_ip>
-</remote>
+**Importante:** sustituye las direcciones de ejemplo por las de tu laboratorio. En `allowed-ips`, utiliza la IP individual del router con máscara `/32` si deseas limitar la recepción a ese dispositivo.
 
-Nota: Cambia 192.168.1.1 por la IP de tu MikroTik.
-Abre el puerto en el firewall de Debian y reinicia el servicio:
+La configuración de archivado global (`logall` y `logall_json`) es opcional para esta integración básica. Habilítala únicamente si necesitas conservar los eventos originales y has evaluado sus requisitos de almacenamiento y configuración de archivos de alertas.
 
+Permite el tráfico Syslog desde el router, si utilizas UFW:
+
+```bash
 sudo ufw allow from 192.168.1.1 to any port 514 proto udp
+```
 
-sudo systemctl restart wazuh-manager
+### 2. Configurar el envío desde MikroTik
 
-
-## Paso 2: Configurar el envío en MikroTik (RouterOS)
-Abre la terminal de tu MikroTik y ejecuta los siguientes comandos para crear la acción remota y redirigir los logs de firewall y sistema:
-
-1. Crear el destino remoto hacia el servidor Debian
-/system logging action add name=wazuhserver target=remote remote=192.168.1.200 remote-port=514 remote-log-format=syslog remote-protocol=udp
-
-2. Asignar las reglas de telemetría que se enviarán
-/system logging add action=wazuhserver topics=firewall
-/system logging add action=wazuhserver topics=system
-/system logging add action=wazuhserver topics=critical
-
-# Paso 3: Añadir Decodificadores Personalizados
-Para romper la cadena de texto cruda del MikroTik y extraer variables limpias (IPs, puertos, interfaces), crea este archivo en Debian:
-
-sudo nano /var/ossec/etc/decoders/mikrotik_decoders.xml
+Abre la terminal de RouterOS y ejecuta el script de configuración incluido en el repositorio.
 
 
-Pega el siguiente código XML:
+El script configura:
 
-<decoder name="mikrotik">
-  <prematch>^firewall,info|^system,info|^dhcp,info|^critical</prematch>
-</decoder>
-
-<decoder name="mikrotik-firewall">
-  <parent>mikrotik</parent>
-  <prematch>dstnat:</prematch>
-  <regex>in:(\S+)\s+out:\S+\s+connection-state:\S+\s+src-mac\s+\S+,\s+proto\s+(\S+)\s+\S+\s+(\d+.\d+.\d+.\d+):(\d+)->(\d+.\d+.\d+.\d+):(\d+)</regex>
-  <order>interface, protocol, srcip, srcport, dstip, dstport</order>
-</decoder>
-
-# Paso 4: Añadir Reglas de Alerta
-Crea el archivo de reglas para que Wazuh asigne severidad a los eventos detectados:
-
-sudo nano /var/ossec/etc/rules/mikrotik_rules.xml
+- Un destino remoto Syslog.
+- El envío de eventos del firewall.
+- El envío de eventos del sistema.
+- El envío de eventos críticos.
 
 
-Pega el siguiente bloque:
+### 3. Instalar los decoders personalizados
 
-<group name="mikrotik,firewall,">
-  <!-- Regla madre para agrupar todo lo que sea MikroTik -->
-  <rule id="100100" level="0">
-    <decoded_as>mikrotik</decoded_as>
-    <description>Eventos generales de MikroTik RouterOS.</description>
-  </rule>
+Copia el archivo `mikrotik_decoders.xml` al directorio de decoders locales:
 
-  <!-- Regla para alertar intentos de conexión por NAT / Firewall -->
-  <rule id="100101" level="3">
-    <if_sid>100100</if_sid>
-    <match>dstnat</match>
-    <description>MikroTik: Intento de conexión detectado en NAT (dstnat).</description>
-  </rule>
-</group>
+```bash
+sudo cp mikrotik_decoders.xml /var/ossec/etc/decoders/
+```
 
-# Paso 5: Testear y Aplicar Cambios
-Prueba un log crudo con la herramienta de testeo nativa:
+Los decoders permiten que Wazuh reconozca determinados formatos de mensajes de MikroTik y extraiga campos estructurados de los registros de firewall.
 
-/var/ossec/bin/wazuh-logtest
+Para los eventos compatibles con el decoder de firewall, se contemplan campos como:
 
+- `interface`
+- `protocol`
+- `srcip`
+- `srcport`
+- `dstip`
+- `dstport`
 
-Pega una línea de log como esta (un log de Mikrotik "crudo"):
+La extracción depende de que el mensaje recibido coincida con el formato esperado por las expresiones regulares.
 
+### 4. Instalar las reglas de alerta
+
+Copia el archivo `mikrotik_rules.xml` al directorio de reglas locales:
+
+```bash
+sudo cp mikrotik_rules.xml /var/ossec/etc/rules/
+```
+
+Las reglas permiten clasificar los eventos decodificados y asignarles un nivel de alerta.
+
+En esta implementación se utilizan los siguientes identificadores:
+
+| ID | Función |
+|---|---|
+| `100100` | Regla base para eventos reconocidos de MikroTik. |
+| `100101` | Alerta para eventos de firewall asociados con `dstnat`. |
+
+Los niveles de alerta configurados son los definidos en el archivo de reglas del repositorio.
+
+**Nota:** una alerta de nivel 3 indica que el evento ha sido clasificado por la regla; no significa necesariamente que se haya confirmado un ataque o una intrusión.
+
+### 5. Validar los decoders y las reglas
+
+Antes de reiniciar el servicio, ejecuta la herramienta de pruebas de Wazuh:
+
+```bash
+sudo /var/ossec/bin/wazuh-logtest
+```
+
+Introduce un evento de ejemplo compatible con el formato que espera el decoder de firewall:
+
+```text
 firewall,info NATKALI dstnat: in:ether1-WAN IPT LIBXXX out:(unknown 0), connection-state:new src-mac 08:EC:F5:4F:D7:F8, proto TCP (SYN), 181.110.118.118:23440->192.115.101.250:22, len 52
+```
 
-Deberías ver que la Fase 2 decodifica los campos por separado y la Fase 3 dispara la regla 100101.
+Comprueba que:
 
-Si todo es correcto, reinicia los servicios:
+1. La fase 1 reconoce el mensaje de entrada.
+2. La fase 2 identifica el decoder y extrae los campos esperados.
+3. La fase 3 activa la regla de alerta correspondiente.
 
+El resultado esperado para el evento de ejemplo es la activación de la regla `100101`, siempre que el decoder y las reglas instaladas coincidan con la configuración del repositorio.
+
+Si los resultados son correctos, reinicia el servicio:
+
+```bash
 sudo systemctl restart wazuh-manager
+sudo systemctl status wazuh-manager --no-pager
+```
 
-sudo systemctl restart filebeat
+### 6. Consultar los eventos en Wazuh Dashboard
+
+Accede al dashboard de Wazuh y abre la vista de alertas o Discover, según la configuración de tu instalación.
+
+A continuación:
+
+1. Selecciona un rango de tiempo que incluya los eventos de la prueba.
+2. Filtra por el identificador de regla `100101`.
+3. Abre una alerta y examina los campos decodificados.
+4. Comprueba las direcciones IP, los puertos y el protocolo cuando estén disponibles.
+
+Puedes utilizar una consulta como:
+
+```text
+rule.id: 100101
+```
+
+También puedes buscar por la IP del router o por otros campos que estén presentes en los documentos indexados.
+
+Los nombres y rutas de los campos pueden variar según la versión de Wazuh, el decoder utilizado y la estructura del evento indexado.
 
 
+## Objetivo del laboratorio
 
-Visualización en el Dashboard
-Ve a tu panel de Wazuh web y entra a OpenSearch Dashboards > Discover.
-Cambia el rango de tiempo de búsqueda a "Today" o "Last 24 hours".
-En la barra de filtrado rápido busca:
+Demostrar cómo integrar un dispositivo de red sin agente con un SIEM, transformar registros Syslog en eventos estructurados y aplicar reglas de detección personalizadas para mejorar la visibilidad del tráfico de red.
 
-rule.id: "100101"
-
-o por la dirección IP del router directamente (192.168.1.1 para este caso)
-
-Despliega cualquier registro recibido. Ahora verás los campos indexados por separado de forma estructurada (data.srcip, data.dstport, data.interface).
-
-
+Esta implementación puede ampliarse con detecciones para escaneos de puertos, intentos de acceso administrativo, cambios de configuración y otros comportamientos relevantes para la seguridad de la infraestructura.
