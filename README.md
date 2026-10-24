@@ -43,10 +43,10 @@ sudo systemctl restart wazuh-manager
 ## Paso 2: Configurar el envío en MikroTik (RouterOS)
 Abre la terminal de tu MikroTik y ejecuta los siguientes comandos para crear la acción remota y redirigir los logs de firewall y sistema:
 
-# 1. Crear el destino remoto hacia el servidor Debian
+1. Crear el destino remoto hacia el servidor Debian
 /system logging action add name=wazuhserver target=remote remote=192.168.1.200 remote-port=514 remote-log-format=syslog remote-protocol=udp
 
-# 2. Asignar las reglas de telemetría que se enviarán
+2. Asignar las reglas de telemetría que se enviarán
 /system logging add action=wazuhserver topics=firewall
 /system logging add action=wazuhserver topics=system
 /system logging add action=wazuhserver topics=critical
