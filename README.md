@@ -99,9 +99,12 @@ Prueba un log crudo con la herramienta de testeo nativa:
 /var/ossec/bin/wazuh-logtest
 
 
-Pega una línea de log como esta:
-firewall,info NATKALI dstnat: in:ether1-WAN IPT LIBXXX out:(unknown 0), connection-state:new src-mac 08:EC:F5:4F:D7:F8, proto TCP (SYN), 181.110.118.118:23440->192.115.101.250:2223, len 52
+Pega una línea de log como esta (un log de Mikrotik "crudo"):
+
+firewall,info NATKALI dstnat: in:ether1-WAN IPT LIBXXX out:(unknown 0), connection-state:new src-mac 08:EC:F5:4F:D7:F8, proto TCP (SYN), 181.110.118.118:23440->192.115.101.250:22, len 52
+
 Deberías ver que la Fase 2 decodifica los campos por separado y la Fase 3 dispara la regla 100101.
+
 Si todo es correcto, reinicia los servicios:
 
 sudo systemctl restart wazuh-manager
@@ -116,7 +119,9 @@ Cambia el rango de tiempo de búsqueda a "Today" o "Last 24 hours".
 En la barra de filtrado rápido busca:
 
 rule.id: "100101"
-Usa el código con precaución.
-Despliega cualquier registro recibido. Ahora verás los campos indexados por separado de forma estructurada (data.srcip, data.dstport, data.interface), listos para crear visualizaciones o mapas de calor de ataques.
+
+o por la dirección IP del router directamente (192.168.1.1 para este caso)
+
+Despliega cualquier registro recibido. Ahora verás los campos indexados por separado de forma estructurada (data.srcip, data.dstport, data.interface).
 
 
