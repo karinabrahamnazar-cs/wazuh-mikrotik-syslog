@@ -1,15 +1,18 @@
-# Guardar logs de MikroTik en Wazuh (vía Syslog)
+## Guardar logs de MikroTik en Wazuh (vía Syslog)
+
 Este repositorio contiene la configuración necesaria para recibir, decodificar y visualizar la telemetría y eventos de firewall de un router MikroTik RouterOS en Wazuh SIEM sin instalar agentes, usando el protocolo Syslog estándar.
 
- Resumen de la Arquitectura
+## Resumen de la Arquitectura
+
 MikroTik envía eventos en texto plano por puerto 514 UDP.
 Debian (Wazuh Manager) abre el puerto de escucha y valida que solo esa IP entregue logs.
 Wazuh Engine procesa el texto usando expresiones regulares (decoders).
 Wazuh Rules genera alertas indexables (Nivel 3).
 Filebeat empuja las alertas hacia el Dashboard de OpenSearch.
 
- Guía Paso a Paso
-# Paso 1: Habilitar Syslog en Wazuh Manager
+## Guía Paso a Paso
+
+## Paso 1: Habilitar Syslog en Wazuh Manager
 Conéctate por SSH a tu servidor Wazuh (192.168.1.200, para este laboratorio) y edita el archivo de configuración principal:
 
 sudo nano /var/ossec/etc/ossec.conf
@@ -25,7 +28,7 @@ Asegúrate de tener habilitado el bloque <logall> en la sección <global> para a
   <connection>syslog</connection>
   <port>514</port>
   <protocol>udp</protocol>
-  <allowed-ips>192.168.1.1/32</allowed-ips>
+  <allowed-ips>192.168.1.1/24</allowed-ips>
   <local_ip>192.168.1.200</local_ip>
 </remote>
 
@@ -37,7 +40,7 @@ sudo ufw allow from 192.168.1.1 to any port 514 proto udp
 sudo systemctl restart wazuh-manager
 
 
-# Paso 2: Configurar el envío en MikroTik (RouterOS)
+## Paso 2: Configurar el envío en MikroTik (RouterOS)
 Abre la terminal de tu MikroTik y ejecuta los siguientes comandos para crear la acción remota y redirigir los logs de firewall y sistema:
 
 # 1. Crear el destino remoto hacia el servidor Debian
